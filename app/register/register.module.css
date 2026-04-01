@@ -1,0 +1,215 @@
+.container {
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-image: url("/ad-bg.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  padding: 30px;
+  overflow: hidden;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.08);
+  z-index: 1;
+}
+
+.registerBox {
+  position: relative;
+  z-index: 2;
+  width: 980px;
+  max-width: 100%;
+  min-height: 560px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 55px;
+}
+
+.leftSide {
+  border-radius: 24px;
+  background: linear-gradient(
+    135deg,
+    rgba(7, 19, 39, 0.92) 0%,
+    rgba(18, 53, 127, 0.88) 55%,
+    rgba(42, 82, 219, 0.82) 100%
+  );
+  color: white;
+  padding: 42px 34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.leftSide h1 {
+  font-size: 38px;
+  margin: 0 0 18px 0;
+  letter-spacing: 0.5px;
+}
+
+.leftSide p {
+  font-size: 16px;
+  line-height: 1.9;
+  color: #edf3ff;
+  margin: 0;
+  max-width: 380px;
+}
+
+.rightSide {
+  border-radius: 24px;
+  padding: 42px 34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.rightSide h2 {
+  font-size: 30px;
+  margin: 0 0 8px 0;
+  color: #1f2a44;
+}
+
+.subtitle {
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.form label {
+  font-size: 15px;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 600;
+}
+
+.roleOptions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.roleBtn {
+  padding: 10px 16px;
+  border: 1px solid #24365f;
+  background-color: white;
+  color: #24365f;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.roleActive {
+  background-color: #24365f;
+  color: white;
+}
+
+.form input {
+  padding: 14px 14px;
+  margin-bottom: 18px;
+  border: 1px solid #d7dce5;
+  border-radius: 12px;
+  font-size: 15px;
+  outline: none;
+  background: #fff;
+  transition: 0.2s;
+}
+
+.form input:focus {
+  border-color: #6b8cff;
+  box-shadow: 0 0 0 3px rgba(107, 140, 255, 0.12);
+}
+
+.registerBtn {
+  background: linear-gradient(90deg, #1f2a44 0%, #2a52db 100%);
+  color: white;
+  border: none;
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.2s;
+  margin-top: 8px;
+}
+
+.registerBtn:hover {
+  transform: translateY(-1px);
+}
+
+.errorMessage {
+  width: 100%;
+  margin: 8px auto 12px auto;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background-color: #fee2e2;
+  color: #b91c1c;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid #fecaca;
+}
+
+.successMessage {
+  width: 100%;
+  margin: 8px auto 12px auto;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background-color: #dcfce7;
+  color: #166534;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid #bbf7d0;
+}
+
+.footerText {
+  margin-top: 22px;
+  font-size: 14px;
+  color: #555;
+}
+
+.footerText a {
+  color: #1f2a44;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+@media (max-width: 992px) {
+  .registerBox {
+    width: 100%;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .leftSide,
+  .rightSide {
+    border-radius: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .leftSide,
+  .rightSide {
+    padding: 30px 22px;
+  }
+
+  .leftSide h1 {
+    font-size: 30px;
+  }
+
+  .rightSide h2 {
+    font-size: 26px;
+  }
+}
