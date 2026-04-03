@@ -1,0 +1,12 @@
+-- CreateTable
+CREATE TABLE "ClientFile" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "name" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "size" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "date" TEXT NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ClientFile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
