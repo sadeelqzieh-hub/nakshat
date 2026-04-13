@@ -1,102 +1,165 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import fs from "fs";
-import path from "path";
+import { cookies } from "next/headers";
 
-function buildMediaMessage(params: {
-  mediaType: "image" | "video";
-  url: string;
-  fileName: string;
-  caption?: string;
-}) {
-  const payload = {
-    kind: "media",
-    mediaType: params.mediaType,
-    url: params.url,
-    fileName: params.fileName,
-    caption: params.caption || "",
-  };
+export async function GET(request: Request) {
+  try {
+    const cookieStore = await cookies();
+    const authUser = cookieStore.get("auth_user")?.value;
 
-  return `__CHAT_MEDIA__${JSON.stringify(payload)}`;
+    if (!authUser) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { email: authUser },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { success: false, message: "User not found." },
+        { status: 404 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const conversationId = Number(searchParams.get("conversationId"));
+
+    if (!conversationId) {
+      return NextResponse.json(
+        { success: false, message: "conversationId is required." },
+        { status: 400 }
+      );
+    }
+
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        OR: [{ userAId: currentUser.id }, { userBId: currentUser.id }],
+      },
+    });
+
+    if (!conversation) {
+      return NextResponse.json(
+        { success: false, message: "Conversation not found." },
+        { status: 404 }
+      );
+    }
+
+    const messages = await prisma.message.findMany({
+      where: { conversationId },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return NextResponse.json({
+      success: true,
+      messages,
+    });
+  } catch (error) {
+    console.error("CHAT MESSAGES GET ERROR:", error);
+    return NextResponse.json(
+      { success: false, message: "Server error" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
+    const cookieStore = await cookies();
+    const authUser = cookieStore.get("auth_user")?.value;
 
-    const conversationId = Number(formData.get("conversationId"));
-    const senderId = Number(formData.get("senderId"));
-    const caption = String(formData.get("caption") || "");
-    const file = formData.get("file") as File | null;
-
-    if (!conversationId || !senderId || !file) {
+    if (!authUser) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "conversationId, senderId and file are required.",
-        },
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { email: authUser },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { success: false, message: "User not found." },
+        { status: 404 }
+      );
+    }
+
+    const body = await request.json();
+    const conversationId = Number(body.conversationId);
+    const text = body.text?.trim() || "";
+    const fileUrl = body.fileUrl?.trim() || null;
+    const fileName = body.fileName?.trim() || null;
+    const fileType = body.fileType?.trim() || null;
+
+    if (!conversationId) {
+      return NextResponse.json(
+        { success: false, message: "conversationId is required." },
         { status: 400 }
       );
     }
 
-    const member = await prisma.conversationMember.findFirst({
+    if (!text && !fileUrl) {
+      return NextResponse.json(
+        { success: false, message: "Message text or file is required." },
+        { status: 400 }
+      );
+    }
+
+    const conversation = await prisma.conversation.findFirst({
       where: {
-        conversationId,
-        userId: senderId,
+        id: conversationId,
+        OR: [{ userAId: currentUser.id }, { userBId: currentUser.id }],
       },
     });
 
-    if (!member) {
+    if (!conversation) {
       return NextResponse.json(
-        { success: false, message: "User is not a member of this conversation." },
-        { status: 403 }
+        { success: false, message: "Conversation not found." },
+        { status: 404 }
       );
     }
-
-    const mimeType = file.type || "";
-    const mediaType = mimeType.startsWith("video/")
-      ? "video"
-      : mimeType.startsWith("image/")
-      ? "image"
-      : null;
-
-    if (!mediaType) {
-      return NextResponse.json(
-        { success: false, message: "Only image and video files are allowed." },
-        { status: 400 }
-      );
-    }
-
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    const mediaDir = path.join(process.cwd(), "public", "chat-media");
-
-    if (!fs.existsSync(mediaDir)) {
-      fs.mkdirSync(mediaDir, { recursive: true });
-    }
-
-    const safeName = `${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
-    const filePath = path.join(mediaDir, safeName);
-
-    fs.writeFileSync(filePath, buffer);
-
-    const fileUrl = `/chat-media/${safeName}`;
-    const encodedText = buildMediaMessage({
-      mediaType,
-      url: fileUrl,
-      fileName: safeName,
-      caption,
-    });
 
     const message = await prisma.message.create({
       data: {
         conversationId,
-        senderId,
-        text: encodedText,
+        senderId: currentUser.id,
+        text: text || null,
+        fileUrl,
+        fileName,
+        fileType,
       },
       include: {
-        sender: true,
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        updatedAt: new Date(),
       },
     });
 
@@ -105,9 +168,9 @@ export async function POST(request: Request) {
       message,
     });
   } catch (error) {
-    console.error("UPLOAD CHAT MEDIA ERROR:", error);
+    console.error("CHAT MESSAGES POST ERROR:", error);
     return NextResponse.json(
-      { success: false, message: "Failed to upload chat media." },
+      { success: false, message: "Server error" },
       { status: 500 }
     );
   }

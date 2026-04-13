@@ -1,115 +1,163 @@
+
+
+
+
+model User {
+  id               Int                 @id @default(autoincrement())
+  name             String
+  email            String              @unique
+  passwordHash     String
+  role             String
+  createdAt        DateTime            @default(now())
+
+  clientProfile    ClientProfile?
+  projects         Project[]
+  files            ClientFile[]
+  reports          ClientReport[]
+  serviceRequests  ServiceRequest[]
+  designs          ClientDesign[]
+  videos           ClientVideo[]
+
+  sentMessages     Message[]           @relation("SentMessages")
+  conversationA    Conversation[]      @relation("ConversationUserA")
+  conversationB    Conversation[]      @relation("ConversationUserB")
+  settings         UserSettings?
+}
+
+model ClientProfile {
+  id              Int      @id @default(autoincrement())
+  companyName     String
+  businessType    String
+  contactPerson   String
+  phone           String
+  location        String
+  packageName     String
+  contractStart   String
+  contractStatus  String
+  website         String
+  socialMedia     String
+  userId          Int      @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id         Int      @id @default(autoincrement())
+  name       String
+  service    String
+  status     String
+  deadline   String
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model ClientFile {
+  id         Int      @id @default(autoincrement())
+  name       String
+  type       String
+  size       String
+  status     String
+  date       String
+  filePath   String
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model ClientReport {
+  id         Int      @id @default(autoincrement())
+  title      String
+  period     String
+  metric     String
+  result     String
+  status     String
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model ServiceRequest {
+  id                  Int      @id @default(autoincrement())
+  title               String
+  serviceType         String
+  description         String
+  preferredStartDate  String
+  priority            String
+  status              String   @default("Pending")
+  userId              Int
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt           DateTime @default(now())
+}
+
+model ClientDesign {
+  id         Int      @id @default(autoincrement())
+  title      String
+  type       String
+  date       String
+  status     String
+  note       String
+  previewPath String?
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model ClientVideo {
+  id         Int      @id @default(autoincrement())
+  title      String
+  type       String
+  date       String
+  status     String
+  note       String
+  videoPath  String?
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model Conversation {
+  id           Int       @id @default(autoincrement())
+  userAId      Int
+  userBId      Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  userA        User      @relation("ConversationUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB        User      @relation("ConversationUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages     Message[]
+
+  @@unique([userAId, userBId])
+}
+
+model Message {
+  id              Int           @id @default(autoincrement())
+  conversationId  Int
+  senderId        Int
+  text            String?
+  fileUrl         String?
+  fileName        String?
+  fileType        String?
+  createdAt       DateTime      @default(now())
+
+  conversation    Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          User          @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model UserSettings {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @unique
+  theme      String   @default("light")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
-
-model User {
-  id              Int              @id @default(autoincrement())
-  name            String
-  email           String           @unique
-  passwordHash    String
-  role            String
-  createdAt       DateTime         @default(now())
-  clientProfile   ClientProfile?
-  projects        Project[]
-  files           ClientFile[]
-  reports         ClientReport[]
-  serviceRequests ServiceRequest[]
-  designs         ClientDesign[]
-  videos          ClientVideo[]
-}
-
-model ClientProfile {
-  id             Int    @id @default(autoincrement())
-  companyName    String
-  businessType   String
-  contactPerson  String
-  phone          String
-  location       String
-  packageName    String
-  contractStart  String
-  contractStatus String
-  website        String
-  socialMedia    String
-  userId         Int    @unique
-  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Project {
-  id        Int      @id @default(autoincrement())
-  name      String
-  service   String
-  status    String
-  deadline  String
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-}
-
-model ClientFile {
-  id        Int      @id @default(autoincrement())
-  name      String
-  type      String
-  size      String
-  status    String
-  date      String
-  filePath  String
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-}
-
-model ClientReport {
-  id        Int      @id @default(autoincrement())
-  title     String
-  period    String
-  metric    String
-  result    String
-  status    String
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-}
-
-model ServiceRequest {
-  id                 Int      @id @default(autoincrement())
-  title              String
-  serviceType        String
-  description        String
-  preferredStartDate String
-  priority           String
-  status             String   @default("Pending")
-  userId             Int
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt          DateTime @default(now())
-}
-
-model ClientDesign {
-  id          Int      @id @default(autoincrement())
-  title       String
-  type        String
-  date        String
-  status      String
-  note        String
-  previewPath String?
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-}
-
-model ClientVideo {
-  id          Int      @id @default(autoincrement())
-  title       String
-  type        String
-  date        String
-  status      String
-  note        String
-  videoPath   String?
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }

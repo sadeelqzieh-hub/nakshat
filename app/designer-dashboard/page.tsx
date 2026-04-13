@@ -1,30 +1,34 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import styles from "./designer-dashboard.module.css";
 import {
   Bell,
   Briefcase,
+  CheckCheck,
   CheckCircle2,
-  Clock3,
   FolderOpen,
   Image as ImageIcon,
   LayoutDashboard,
+  Megaphone,
   MessageSquare,
+  Palette,
+  Pencil,
   Plus,
   Search,
   Send,
-  Upload,
-  Video,
-  Palette,
-  CheckCheck,
-  Megaphone,
-  Pencil,
-  Trash2,
-  X,
-  Users,
   Smile,
+  Trash2,
+  Upload,
+  Users,
+  Video,
+  X,
   Paperclip,
+  Moon,
+  Sun,
+  Settings,
+  LogOut,
 } from "lucide-react";
 
 type Project = {
@@ -59,21 +63,21 @@ type UploadItem = {
 
 type Conversation = {
   id: number;
-  title: string;
+  title?: string;
   project?: {
     id: number;
-    name: string;
+    name?: string;
   } | null;
-  members: {
+  members?: {
     id: number;
     user: {
       id: number;
-      name: string;
-      email: string;
-      role: string;
+      name?: string;
+      email?: string;
+      role?: string;
     };
   }[];
-  messages: {
+  messages?: {
     id: number;
     text: string;
     createdAt: string;
@@ -102,10 +106,11 @@ type ParsedMediaMessage = {
 
 const DEMO_DESIGNER_ID = 2;
 const STORAGE_KEY = "designer_selected_conversation";
+const THEME_KEY = "designer_dashboard_theme";
 const EMOJIS = ["😀", "😂", "😍", "🔥", "👏", "🎉", "❤️", "👍", "🤝", "😎"];
 
 function parseMessageContent(text: string): ParsedMediaMessage {
-  if (text.startsWith("__CHAT_MEDIA__")) {
+  if (typeof text === "string" && text.startsWith("__CHAT_MEDIA__")) {
     try {
       const raw = text.replace("__CHAT_MEDIA__", "");
       const parsed = JSON.parse(raw);
@@ -130,12 +135,20 @@ function parseMessageContent(text: string): ParsedMediaMessage {
   };
 }
 
+function formatRole(role?: string) {
+  if (!role) return "User";
+  return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
 export default function DesignerDashboardPage() {
   const [activeSection, setActiveSection] = useState("dashboard");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
+
   const [messageText, setMessageText] = useState("");
   const [conversationSearch, setConversationSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -171,6 +184,17 @@ export default function DesignerDashboardPage() {
     projectId: "",
   });
 
+  useEffect(() => {
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme === "dark" || savedTheme === "light") {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
   async function loadData() {
     try {
       setLoading(true);
@@ -185,25 +209,27 @@ export default function DesignerDashboardPage() {
       const uploadsData = await uploadsRes.json();
       const chatData = await chatRes.json();
 
-      if (projectsData.success) setProjects(projectsData.projects);
-      if (uploadsData.success) setUploads(uploadsData.uploads);
+      const loadedProjects = projectsData.success ? projectsData.projects || [] : [];
+      const loadedUploads = uploadsData.success ? uploadsData.uploads || [] : [];
+      const loadedConversations = chatData.success
+        ? (chatData.conversations as Conversation[]) || []
+        : [];
 
-      if (chatData.success) {
-        const loadedConversations = chatData.conversations as Conversation[];
-        setConversations(loadedConversations);
+      setProjects(loadedProjects);
+      setUploads(loadedUploads);
+      setConversations(loadedConversations);
 
-        const savedConversationId = Number(localStorage.getItem(STORAGE_KEY));
+      const savedConversationId = Number(localStorage.getItem(STORAGE_KEY));
 
-        if (
-          savedConversationId &&
-          loadedConversations.some((item) => item.id === savedConversationId)
-        ) {
-          setSelectedConversationId(savedConversationId);
-        } else if (loadedConversations.length > 0) {
-          setSelectedConversationId(loadedConversations[0].id);
-        } else {
-          setSelectedConversationId(null);
-        }
+      if (
+        savedConversationId &&
+        loadedConversations.some((item) => item.id === savedConversationId)
+      ) {
+        setSelectedConversationId(savedConversationId);
+      } else if (loadedConversations.length > 0) {
+        setSelectedConversationId(loadedConversations[0].id);
+      } else {
+        setSelectedConversationId(null);
       }
     } catch (error) {
       console.error("LOAD DESIGNER DATA ERROR:", error);
@@ -239,7 +265,7 @@ export default function DesignerDashboardPage() {
         const data = await res.json();
 
         if (data.success) {
-          const participants = (data.participants as Participant[]).filter(
+          const participants = ((data.participants as Participant[]) || []).filter(
             (item) => item.id !== DEMO_DESIGNER_ID
           );
 
@@ -264,16 +290,11 @@ export default function DesignerDashboardPage() {
     if (!search) return conversations;
 
     return conversations.filter((chat) => {
-      const titleMatch = chat.title.toLowerCase().includes(search);
-      const projectMatch = chat.project?.name?.toLowerCase().includes(search);
-
-      const memberMatch = chat.members.some((member) => {
+      return (chat.members ?? []).some((member) => {
         const memberName = member.user.name?.toLowerCase() || "";
         const memberEmail = member.user.email?.toLowerCase() || "";
         return memberName.includes(search) || memberEmail.includes(search);
       });
-
-      return titleMatch || projectMatch || memberMatch;
     });
   }, [conversationSearch, conversations]);
 
@@ -281,15 +302,20 @@ export default function DesignerDashboardPage() {
     return conversations.find((item) => item.id === selectedConversationId) || null;
   }, [conversations, selectedConversationId]);
 
+  const selectedConversationMessages = selectedConversation?.messages ?? [];
+  const selectedConversationMembers = selectedConversation?.members ?? [];
+
   const getLastMessage = (chat: Conversation) => {
-    if (!chat.messages || chat.messages.length === 0) {
+    const messages = chat.messages ?? [];
+
+    if (messages.length === 0) {
       return {
         text: "No messages yet.",
         time: "",
       };
     }
 
-    const last = chat.messages[chat.messages.length - 1];
+    const last = messages[messages.length - 1];
     const parsed = parseMessageContent(last.text);
 
     let preview = "No messages yet.";
@@ -327,7 +353,7 @@ export default function DesignerDashboardPage() {
   }, [
     activeSection,
     selectedConversationId,
-    selectedConversation?.messages.length,
+    selectedConversationMessages.length,
     conversations,
   ]);
 
@@ -482,7 +508,6 @@ export default function DesignerDashboardPage() {
 
       if (data.success) {
         const newConversation = data.conversation as Conversation;
-
         setConversations((prev) => [newConversation, ...prev]);
         setSelectedConversationId(newConversation.id);
         setActiveSection("messages");
@@ -752,7 +777,6 @@ export default function DesignerDashboardPage() {
             id: 1,
             title: `${pendingReviewCount} file(s) pending review`,
             time: "Now",
-            type: "review",
           },
         ]
       : []),
@@ -762,7 +786,6 @@ export default function DesignerDashboardPage() {
             id: 2,
             title: `${waitingApprovalCount} file(s) waiting client approval`,
             time: "Now",
-            type: "approval",
           },
         ]
       : []),
@@ -772,7 +795,6 @@ export default function DesignerDashboardPage() {
             id: 3,
             title: `${videoCount} video file(s) available`,
             time: "Now",
-            type: "video",
           },
         ]
       : []),
@@ -782,19 +804,10 @@ export default function DesignerDashboardPage() {
             id: 4,
             title: `${projects.length} active assigned project(s)`,
             time: "Now",
-            type: "project",
           },
         ]
       : []),
   ];
-
-  const upcomingDeadlines = projects.map((project, index) => ({
-    id: project.id,
-    title: project.name,
-    project: project.service,
-    dueDate: project.deadline,
-    daysLeft: index + 2,
-  }));
 
   const recentActivities = uploads.slice(0, 4).map((item, index) => ({
     id: item.id,
@@ -808,7 +821,7 @@ export default function DesignerDashboardPage() {
 
   return (
     <>
-      <div className={styles.page}>
+      <div className={`${styles.page} ${theme === "dark" ? styles.darkPage : ""}`}>
         <aside className={styles.sidebar}>
           <div className={styles.brand}>
             <div className={styles.brandLogo}>N</div>
@@ -882,14 +895,37 @@ export default function DesignerDashboardPage() {
               <Megaphone size={18} />
               Notifications
             </button>
+
+            <button
+              className={activeSection === "settings" ? styles.activeNav : ""}
+              onClick={() => setActiveSection("settings")}
+            >
+              <Settings size={18} />
+              Settings
+            </button>
           </nav>
 
           <div className={styles.sidebarCard}>
             <h4>Quick Notes</h4>
             <p>
-              Track design tasks, video stages, approvals, and team notifications
-              from one workspace.
+              Track design tasks, video stages, approvals, uploads, and real chats
+              with people linked to your projects.
             </p>
+          </div>
+
+          <div className={styles.sidebarActions}>
+            <button
+              className={styles.themeToggle}
+              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+            >
+              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+              {theme === "light" ? "Dark Mode" : "Light Mode"}
+            </button>
+
+            <button className={styles.logoutBtn} onClick={handleLogout}>
+              <LogOut size={16} />
+              Logout
+            </button>
           </div>
         </aside>
 
@@ -898,8 +934,8 @@ export default function DesignerDashboardPage() {
             <div>
               <h1>Designer Dashboard</h1>
               <p>
-                Manage projects, upload designs and videos, and chat with the system team in one
-                place.
+                Manage projects, upload designs and videos, and chat with clients
+                and team members from one place.
               </p>
             </div>
 
@@ -915,10 +951,6 @@ export default function DesignerDashboardPage() {
                   <span>designer@nakshet.com</span>
                 </div>
               </div>
-
-              <button className={styles.logoutBtn} onClick={handleLogout}>
-                Logout
-              </button>
             </div>
           </header>
 
@@ -1003,11 +1035,11 @@ export default function DesignerDashboardPage() {
 
                     <div className={styles.statCard}>
                       <div className={styles.statIcon}>
-                        <Megaphone size={18} />
+                        <MessageSquare size={18} />
                       </div>
                       <div>
-                        <h3>{notifications.length}</h3>
-                        <p>Notifications</p>
+                        <h3>{conversations.length}</h3>
+                        <p>Open Chats</p>
                       </div>
                     </div>
                   </section>
@@ -1015,87 +1047,13 @@ export default function DesignerDashboardPage() {
                   <section className={styles.doubleGrid}>
                     <div className={styles.panel}>
                       <div className={styles.panelHead}>
-                        <h3>My Projects</h3>
-                      </div>
-
-                      <div className={styles.cardList}>
-                        {projects.map((project) => (
-                          <div className={styles.infoCard} key={project.id}>
-                            <div>
-                              <h4>{project.name}</h4>
-                              <p>{project.service}</p>
-                              <span>Deadline: {project.deadline}</span>
-                            </div>
-                            <strong className={styles.statusBadge}>{project.status}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={styles.panel}>
-                      <div className={styles.panelHead}>
-                        <h3>Recent Uploads</h3>
-                      </div>
-
-                      <div className={styles.cardList}>
-                        {uploads.slice(0, 5).map((item) => (
-                          <div className={styles.infoCard} key={item.id}>
-                            <div>
-                              <h4>{item.title}</h4>
-                              <p>{item.category}</p>
-                              <span>{new Date(item.createdAt).toLocaleString()}</span>
-                            </div>
-                            <a
-                              className={styles.fileLink}
-                              href={item.fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Open
-                            </a>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className={styles.doubleGrid}>
-                    <div className={styles.panel}>
-                      <div className={styles.panelHead}>
-                        <h3>Upcoming Deadlines</h3>
-                      </div>
-
-                      <div className={styles.cardList}>
-                        {upcomingDeadlines.length > 0 ? (
-                          upcomingDeadlines.map((item) => (
-                            <div className={styles.infoCard} key={item.id}>
-                              <div>
-                                <h4>{item.title}</h4>
-                                <p>{item.project}</p>
-                                <span>Due: {item.dueDate}</span>
-                              </div>
-
-                              <strong className={styles.deadlineBadge}>
-                                {item.daysLeft} days left
-                              </strong>
-                            </div>
-                          ))
-                        ) : (
-                          <div className={styles.emptyState}>No project deadlines yet.</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className={styles.panel}>
-                      <div className={styles.panelHead}>
-                        <h3>Recent Activity</h3>
+                        <h3>Recent Activities</h3>
                       </div>
 
                       <div className={styles.cardList}>
                         {recentActivities.length > 0 ? (
                           recentActivities.map((activity) => (
-                            <div className={styles.activityCard} key={activity.id}>
-                              <div className={styles.activityDot}></div>
+                            <div key={activity.id} className={styles.infoCard}>
                               <div>
                                 <h4>{activity.title}</h4>
                                 <p>{activity.detail}</p>
@@ -1104,7 +1062,28 @@ export default function DesignerDashboardPage() {
                             </div>
                           ))
                         ) : (
-                          <div className={styles.emptyState}>No activity yet.</div>
+                          <div className={styles.emptyState}>No recent activity yet.</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className={styles.panel}>
+                      <div className={styles.panelHead}>
+                        <h3>Notifications</h3>
+                      </div>
+
+                      <div className={styles.cardList}>
+                        {notifications.length > 0 ? (
+                          notifications.map((item) => (
+                            <div key={item.id} className={styles.infoCard}>
+                              <div>
+                                <h4>{item.title}</h4>
+                                <span>{item.time}</span>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className={styles.emptyState}>No notifications right now.</div>
                         )}
                       </div>
                     </div>
@@ -1119,37 +1098,30 @@ export default function DesignerDashboardPage() {
                   </div>
 
                   <div className={styles.projectGrid}>
-                    {projects.map((project) => (
-                      <a
-                        key={project.id}
-                        href={`/designer-dashboard/projects/${project.id}`}
-                        className={styles.projectCard}
-                      >
-                        <div className={styles.projectTop}>
-                          <h4>{project.name}</h4>
-                          <span className={styles.statusBadge}>{project.status}</span>
-                        </div>
+                    {projects.length > 0 ? (
+                      projects.map((project) => (
+                        <Link
+                          key={project.id}
+                          href={`/designer-dashboard/projects/${project.id}`}
+                          className={styles.projectCard}
+                        >
+                          <div className={styles.projectTop}>
+                            <div>
+                              <h4>{project.name}</h4>
+                              <p>{project.service}</p>
+                            </div>
+                            <span className={styles.statusBadge}>{project.status}</span>
+                          </div>
 
-                        <p>
-                          <strong>Service:</strong> {project.service}
-                        </p>
-                        <p>
-                          <strong>Owner:</strong> {project.owner.name}
-                        </p>
-                        <p>
-                          <strong>Deadline:</strong> {project.deadline}
-                        </p>
-
-                        <div className={styles.projectMeta}>
-                          <span>
-                            <Clock3 size={14} /> Ongoing work
-                          </span>
-                          <span>
-                            <CheckCircle2 size={14} /> {project.uploads.length} files
-                          </span>
-                        </div>
-                      </a>
-                    ))}
+                          <div className={styles.projectMeta}>
+                            <span>Deadline: {project.deadline}</span>
+                            <span>Client: {project.owner.name}</span>
+                          </div>
+                        </Link>
+                      ))
+                    ) : (
+                      <div className={styles.emptyState}>No assigned projects yet.</div>
+                    )}
                   </div>
                 </section>
               )}
@@ -1160,31 +1132,22 @@ export default function DesignerDashboardPage() {
                     <h3>Design Tasks</h3>
                   </div>
 
-                  <div className={styles.projectGrid}>
+                  <div className={styles.cardList}>
                     {designTasks.length > 0 ? (
                       designTasks.map((task) => (
-                        <div key={task.id} className={styles.projectCard}>
-                          <div className={styles.projectTop}>
+                        <div key={task.id} className={styles.infoCard}>
+                          <div>
                             <h4>{task.title}</h4>
-                            <span className={styles.statusBadge}>{task.status}</span>
+                            <p>{task.project}</p>
+                            <span>
+                              {task.status} • {task.deadline}
+                            </span>
                           </div>
-
-                          <p>
-                            <strong>Type:</strong> {task.type}
-                          </p>
-                          <p>
-                            <strong>Project:</strong> {task.project}
-                          </p>
-                          <p>
-                            <strong>Deadline:</strong> {task.deadline}
-                          </p>
-                          <p>
-                            <strong>Client Note:</strong> {task.clientComment}
-                          </p>
+                          <span className={styles.statusBadge}>{task.type}</span>
                         </div>
                       ))
                     ) : (
-                      <div className={styles.emptyState}>No design files yet.</div>
+                      <div className={styles.emptyState}>No design tasks yet.</div>
                     )}
                   </div>
                 </section>
@@ -1193,37 +1156,25 @@ export default function DesignerDashboardPage() {
               {activeSection === "videos" && (
                 <section className={styles.panel}>
                   <div className={styles.panelHead}>
-                    <h3>Video Production</h3>
+                    <h3>Video Tasks</h3>
                   </div>
 
-                  <div className={styles.projectGrid}>
+                  <div className={styles.cardList}>
                     {videoTasks.length > 0 ? (
-                      videoTasks.map((video) => (
-                        <div key={video.id} className={styles.projectCard}>
-                          <div className={styles.projectTop}>
-                            <h4>{video.title}</h4>
-                            <span className={styles.statusBadge}>{video.stage}</span>
-                          </div>
-
-                          <p>
-                            <strong>Type:</strong> {video.type}
-                          </p>
-                          <p>
-                            <strong>Project:</strong> {video.project}
-                          </p>
-                          <p>
-                            <strong>Deadline:</strong> {video.deadline}
-                          </p>
-
-                          <div className={styles.projectMeta}>
+                      videoTasks.map((task) => (
+                        <div key={task.id} className={styles.infoCard}>
+                          <div>
+                            <h4>{task.title}</h4>
+                            <p>{task.project}</p>
                             <span>
-                              <Video size={14} /> Video from uploads
+                              {task.stage} • {task.deadline}
                             </span>
                           </div>
+                          <span className={styles.statusBadge}>{task.type}</span>
                         </div>
                       ))
                     ) : (
-                      <div className={styles.emptyState}>No video files uploaded yet.</div>
+                      <div className={styles.emptyState}>No video tasks yet.</div>
                     )}
                   </div>
                 </section>
@@ -1233,7 +1184,7 @@ export default function DesignerDashboardPage() {
                 <section className={styles.uploadLayout}>
                   <div className={styles.panel}>
                     <div className={styles.panelHead}>
-                      <h3>{editingUploadId ? "Edit File" : "Upload New Design / Video"}</h3>
+                      <h3>{editingUploadId ? "Edit Upload" : "Upload New File"}</h3>
                     </div>
 
                     <form className={styles.uploadForm} onSubmit={handleUploadFile}>
@@ -1242,7 +1193,7 @@ export default function DesignerDashboardPage() {
                         placeholder="File title"
                         value={uploadForm.title}
                         onChange={(e) =>
-                          setUploadForm({ ...uploadForm, title: e.target.value })
+                          setUploadForm((prev) => ({ ...prev, title: e.target.value }))
                         }
                         required
                       />
@@ -1250,29 +1201,30 @@ export default function DesignerDashboardPage() {
                       <select
                         value={uploadForm.category}
                         onChange={(e) =>
-                          setUploadForm({ ...uploadForm, category: e.target.value })
+                          setUploadForm((prev) => ({ ...prev, category: e.target.value }))
                         }
                       >
                         <option value="design">Design</option>
                         <option value="video">Video</option>
-                        <option value="branding">Branding</option>
                       </select>
 
                       <select
                         value={uploadForm.status}
                         onChange={(e) =>
-                          setUploadForm({ ...uploadForm, status: e.target.value })
+                          setUploadForm((prev) => ({ ...prev, status: e.target.value }))
                         }
                       >
                         <option value="Pending Review">Pending Review</option>
-                        <option value="Waiting Client Approval">Waiting Client Approval</option>
+                        <option value="Waiting Client Approval">
+                          Waiting Client Approval
+                        </option>
                         <option value="Approved">Approved</option>
                       </select>
 
                       <select
                         value={uploadForm.projectId}
                         onChange={(e) =>
-                          setUploadForm({ ...uploadForm, projectId: e.target.value })
+                          setUploadForm((prev) => ({ ...prev, projectId: e.target.value }))
                         }
                       >
                         <option value="">Select project</option>
@@ -1283,23 +1235,23 @@ export default function DesignerDashboardPage() {
                         ))}
                       </select>
 
+                      {!editingUploadId && <input id="designerFile" type="file" required />}
+
                       <textarea
-                        placeholder="Note or revision details"
+                        placeholder="Notes"
+                        rows={5}
                         value={uploadForm.note}
                         onChange={(e) =>
-                          setUploadForm({ ...uploadForm, note: e.target.value })
+                          setUploadForm((prev) => ({ ...prev, note: e.target.value }))
                         }
-                        rows={4}
                       />
-
-                      {!editingUploadId && <input id="designerFile" type="file" required />}
 
                       <div className={styles.formActions}>
                         <button type="submit" disabled={uploading}>
                           {uploading
                             ? "Saving..."
                             : editingUploadId
-                            ? "Save Changes"
+                            ? "Update File"
                             : "Upload File"}
                         </button>
 
@@ -1331,44 +1283,49 @@ export default function DesignerDashboardPage() {
                     </div>
 
                     <div className={styles.cardList}>
-                      {uploads.map((item) => (
-                        <div className={styles.uploadCard} key={item.id}>
-                          <div className={styles.uploadInfo}>
-                            <h4>{item.title}</h4>
-                            <p>
-                              {item.category} • {item.status}
-                            </p>
-                            <span>{item.project?.name || "No project linked"}</span>
+                      {uploads.length > 0 ? (
+                        uploads.map((item) => (
+                          <div key={item.id} className={styles.uploadCard}>
+                            <div className={styles.uploadInfo}>
+                              <h4>{item.title}</h4>
+                              <p>
+                                {item.category} • {item.status}
+                              </p>
+                              <span>
+                                {item.project?.name || "No project linked"} •{" "}
+                                {new Date(item.createdAt).toLocaleString()}
+                              </span>
+                            </div>
+
+                            <div className={styles.uploadActions}>
+                              <a
+                                href={item.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={styles.fileLink}
+                              >
+                                Open
+                              </a>
+
+                              <button
+                                className={styles.actionBtn}
+                                onClick={() => handleEditUpload(item)}
+                              >
+                                <Pencil size={16} />
+                              </button>
+
+                              <button
+                                className={styles.deleteBtn}
+                                onClick={() => handleDeleteUpload(item.id)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </div>
-
-                          <div className={styles.uploadActions}>
-                            <a
-                              href={item.fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className={styles.fileLink}
-                            >
-                              View
-                            </a>
-
-                            <button
-                              type="button"
-                              className={styles.actionBtn}
-                              onClick={() => handleEditUpload(item)}
-                            >
-                              <Pencil size={16} />
-                            </button>
-
-                            <button
-                              type="button"
-                              className={styles.deleteBtn}
-                              onClick={() => handleDeleteUpload(item.id)}
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      ) : (
+                        <div className={styles.emptyState}>No uploads yet.</div>
+                      )}
                     </div>
                   </div>
                 </section>
@@ -1378,7 +1335,7 @@ export default function DesignerDashboardPage() {
                 <section className={styles.messagesLayout}>
                   <div className={styles.chatSidebar}>
                     <div className={styles.panelHead}>
-                      <h3>Conversations</h3>
+                      <h3>Chats</h3>
                       <button
                         className={styles.newChatBtn}
                         onClick={() => setShowCreateChatModal(true)}
@@ -1392,7 +1349,7 @@ export default function DesignerDashboardPage() {
                       <Search size={16} />
                       <input
                         type="text"
-                        placeholder="Search by chat, project, or person..."
+                        placeholder="Search people only..."
                         value={conversationSearch}
                         onChange={(e) => setConversationSearch(e.target.value)}
                       />
@@ -1401,7 +1358,10 @@ export default function DesignerDashboardPage() {
                     <div className={styles.chatList}>
                       {filteredConversations.length > 0 ? (
                         filteredConversations.map((chat) => {
-                          const lastMessage = getLastMessage(chat);
+                          const last = getLastMessage(chat);
+                          const memberNames = (chat.members ?? [])
+                            .map((member) => member.user.name || "Unknown")
+                            .join(", ");
 
                           return (
                             <button
@@ -1412,23 +1372,22 @@ export default function DesignerDashboardPage() {
                               onClick={() => setSelectedConversationId(chat.id)}
                             >
                               <div className={styles.chatListTop}>
-                                <strong>{chat.title}</strong>
-                                <span className={styles.chatTime}>{lastMessage.time}</span>
+                                <strong>{chat.title || "Untitled Chat"}</strong>
+                                <span className={styles.chatTime}>{last.time}</span>
                               </div>
 
                               <p className={styles.chatProjectName}>
-                                {chat.project?.name || "General conversation"}
+                                {(chat.project?.name ?? "No linked project") || "No linked project"}
                               </p>
 
-                              <span className={styles.chatPreviewText}>
-                                {lastMessage.text}
-                              </span>
+                              <p className={styles.chatPreviewText}>{memberNames}</p>
+                              <p className={styles.chatPreviewText}>{last.text}</p>
                             </button>
                           );
                         })
                       ) : (
                         <div className={styles.noSearchResults}>
-                          No conversation found.
+                          No chats found for this person search.
                         </div>
                       )}
                     </div>
@@ -1440,8 +1399,11 @@ export default function DesignerDashboardPage() {
                         <div className={styles.chatHeader}>
                           <div className={styles.chatHeaderTop}>
                             <div>
-                              <h3>{selectedConversation.title}</h3>
-                              <p>{selectedConversation.project?.name || "No project selected"}</p>
+                              <h3>{selectedConversation.title || "Untitled Chat"}</h3>
+                              <p>
+                                {(selectedConversation.project?.name ?? "No linked project") ||
+                                  "No linked project"}
+                              </p>
                             </div>
 
                             <button
@@ -1449,178 +1411,197 @@ export default function DesignerDashboardPage() {
                               onClick={handleDeleteChat}
                               disabled={deletingChat}
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={15} />
                               {deletingChat ? "Deleting..." : "Delete Chat"}
                             </button>
                           </div>
 
-                          <div className={styles.membersRow}>
+                          <div className={styles.membersList}>
                             <Users size={15} />
-                            <div className={styles.membersList}>
-                              {selectedConversation.members.map((member) => {
-                                const isYou = member.user.id === DEMO_DESIGNER_ID;
-
-                                return (
-                                  <span key={member.id} className={styles.memberBadge}>
-                                    {isYou ? "You" : member.user.name} • {member.user.role}
-                                  </span>
-                                );
-                              })}
-                            </div>
+                            {(selectedConversationMembers ?? []).map((member) => {
+                              const isYou = member.user.id === DEMO_DESIGNER_ID;
+                              return (
+                                <span key={member.id} className={styles.memberChip}>
+                                  {member.user.name || "Unknown"}{" "}
+                                  {isYou ? "(You)" : `(${formatRole(member.user.role)})`}
+                                </span>
+                              );
+                            })}
                           </div>
                         </div>
 
                         <div className={styles.messageArea} ref={messageAreaRef}>
-                          {selectedConversation.messages.map((msg) => {
-                            const mine = msg.sender.id === DEMO_DESIGNER_ID;
-                            const parsed = parseMessageContent(msg.text);
+                          {selectedConversationMessages.length > 0 ? (
+                            selectedConversationMessages.map((msg) => {
+                              const mine = msg.sender.id === DEMO_DESIGNER_ID;
+                              const parsed = parseMessageContent(msg.text);
 
-                            return (
-                              <div
-                                key={msg.id}
-                                className={`${styles.messageBubble} ${
-                                  mine ? styles.myMessage : styles.theirMessage
-                                }`}
-                              >
-                                <strong>{mine ? "You" : msg.sender.name}</strong>
+                              return (
+                                <div
+                                  key={msg.id}
+                                  className={`${styles.messageBubble} ${
+                                    mine ? styles.myMessage : styles.otherMessage
+                                  }`}
+                                >
+                                  <div className={styles.messageMeta}>
+                                    <strong>{msg.sender.name}</strong>
+                                    <span>
+                                      {new Date(msg.createdAt).toLocaleString()}
+                                    </span>
+                                  </div>
 
-                                {editingMessageId === msg.id ? (
-                                  <div className={styles.editMessageBox}>
-                                    <input
-                                      type="text"
-                                      value={editingMessageText}
-                                      onChange={(e) => setEditingMessageText(e.target.value)}
-                                    />
-                                    <div className={styles.editMessageActions}>
-                                      <button onClick={() => handleEditMessage(msg.id)}>
-                                        Save
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setEditingMessageId(null);
-                                          setEditingMessageText("");
-                                        }}
-                                      >
-                                        Cancel
-                                      </button>
+                                  {editingMessageId === msg.id ? (
+                                    <div className={styles.editMessageBox}>
+                                      <textarea
+                                        value={editingMessageText}
+                                        onChange={(e) =>
+                                          setEditingMessageText(e.target.value)
+                                        }
+                                        rows={3}
+                                      />
+                                      <div className={styles.editActions}>
+                                        <button
+                                          className={styles.smallPrimaryBtn}
+                                          onClick={() => handleEditMessage(msg.id)}
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          className={styles.smallGhostBtn}
+                                          onClick={() => {
+                                            setEditingMessageId(null);
+                                            setEditingMessageText("");
+                                          }}
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
                                     </div>
-                                  </div>
-                                ) : parsed.kind === "media" ? (
-                                  <div className={styles.mediaMessageBox}>
-                                    {parsed.mediaType === "image" ? (
-                                      <img
-                                        src={parsed.url}
-                                        alt="chat media"
-                                        className={styles.chatMediaImage}
-                                      />
-                                    ) : (
-                                      <video
-                                        src={parsed.url}
-                                        controls
-                                        className={styles.chatMediaVideo}
-                                      />
-                                    )}
+                                  ) : (
+                                    <>
+                                      {parsed.kind === "media" ? (
+                                        <div className={styles.mediaMessage}>
+                                          {parsed.mediaType === "image" ? (
+                                            <img
+                                              src={parsed.url}
+                                              alt="Uploaded chat media"
+                                              className={styles.chatMedia}
+                                            />
+                                          ) : (
+                                            <video
+                                              src={parsed.url}
+                                              controls
+                                              className={styles.chatMedia}
+                                            />
+                                          )}
 
-                                    {parsed.caption ? (
-                                      <p className={styles.mediaCaption}>{parsed.caption}</p>
-                                    ) : null}
-                                  </div>
-                                ) : (
-                                  <p>{parsed.text}</p>
-                                )}
+                                          {parsed.caption ? <p>{parsed.caption}</p> : null}
+                                        </div>
+                                      ) : (
+                                        <p className={styles.messageText}>{parsed.text}</p>
+                                      )}
 
-                                <span>{new Date(msg.createdAt).toLocaleString()}</span>
-
-                                {mine && editingMessageId !== msg.id ? (
-                                  <div className={styles.messageActions}>
-                                    {parsed.kind === "text" ? (
-                                      <button
-                                        onClick={() => {
-                                          setEditingMessageId(msg.id);
-                                          setEditingMessageText(parsed.text || "");
-                                        }}
-                                      >
-                                        Edit
-                                      </button>
-                                    ) : null}
-                                    <button onClick={() => handleDeleteMessage(msg.id)}>
-                                      Delete
-                                    </button>
-                                  </div>
-                                ) : null}
-                              </div>
-                            );
-                          })}
+                                      {mine && (
+                                        <div className={styles.messageTools}>
+                                          <button
+                                            className={styles.toolBtn}
+                                            onClick={() => {
+                                              setEditingMessageId(msg.id);
+                                              setEditingMessageText(msg.text);
+                                            }}
+                                          >
+                                            <Pencil size={14} />
+                                          </button>
+                                          <button
+                                            className={styles.toolBtnDanger}
+                                            onClick={() => handleDeleteMessage(msg.id)}
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className={styles.emptyState}>
+                              No messages yet in this chat.
+                            </div>
+                          )}
                         </div>
 
-                        <div className={styles.chatToolsRow}>
-                          <button
-                            className={styles.toolBtn}
-                            type="button"
-                            onClick={() => setShowEmojiBar((prev) => !prev)}
-                          >
-                            <Smile size={16} />
-                            Emoji
-                          </button>
+                        <div className={styles.chatComposer}>
+                          {showEmojiBar && (
+                            <div className={styles.emojiBar}>
+                              {EMOJIS.map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  className={styles.emojiBtn}
+                                  onClick={() => setMessageText((prev) => prev + emoji)}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
 
-                          <button
-                            className={styles.toolBtn}
-                            type="button"
-                            onClick={() => mediaInputRef.current?.click()}
-                          >
-                            <Paperclip size={16} />
-                            Media
-                          </button>
+                          <div className={styles.chatActionsRow}>
+                            <button
+                              className={styles.iconActionBtn}
+                              onClick={() => setShowEmojiBar((prev) => !prev)}
+                            >
+                              <Smile size={16} />
+                            </button>
 
-                          <input
-                            ref={mediaInputRef}
-                            type="file"
-                            accept="image/*,video/*"
-                            className={styles.hiddenInput}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                handleMediaUpload(file);
-                              }
-                            }}
-                          />
-                        </div>
+                            <button
+                              className={styles.iconActionBtn}
+                              onClick={() => mediaInputRef.current?.click()}
+                              disabled={sendingMedia}
+                            >
+                              <Paperclip size={16} />
+                            </button>
 
-                        {showEmojiBar ? (
-                          <div className={styles.emojiBar}>
-                            {EMOJIS.map((emoji) => (
-                              <button
-                                key={emoji}
-                                type="button"
-                                onClick={() => setMessageText((prev) => prev + emoji)}
-                              >
-                                {emoji}
-                              </button>
-                            ))}
+                            <input
+                              ref={mediaInputRef}
+                              type="file"
+                              accept="image/*,video/*"
+                              hidden
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleMediaUpload(file);
+                              }}
+                            />
+
+                            <input
+                              type="text"
+                              placeholder="Write your message..."
+                              value={messageText}
+                              onChange={(e) => setMessageText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleSendMessage();
+                                }
+                              }}
+                            />
+
+                            <button
+                              className={styles.sendBtn}
+                              onClick={handleSendMessage}
+                              disabled={!messageText.trim()}
+                            >
+                              <Send size={16} />
+                              Send
+                            </button>
                           </div>
-                        ) : null}
-
-                        <div className={styles.messageComposer}>
-                          <input
-                            type="text"
-                            placeholder="Type your message or add caption..."
-                            value={messageText}
-                            onChange={(e) => setMessageText(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                handleSendMessage();
-                              }
-                            }}
-                          />
-                          <button onClick={handleSendMessage} disabled={sendingMedia}>
-                            <Send size={16} />
-                            Send
-                          </button>
                         </div>
                       </>
                     ) : (
-                      <div className={styles.emptyState}>No conversation selected.</div>
+                      <div className={styles.emptyState}>
+                        Select a chat to start messaging.
+                      </div>
                     )}
                   </div>
                 </section>
@@ -1629,23 +1610,25 @@ export default function DesignerDashboardPage() {
               {activeSection === "approvals" && (
                 <section className={styles.panel}>
                   <div className={styles.panelHead}>
-                    <h3>Approvals & Reviews</h3>
+                    <h3>Approvals</h3>
                   </div>
 
                   <div className={styles.cardList}>
                     {approvalItems.length > 0 ? (
                       approvalItems.map((item) => (
-                        <div className={styles.infoCard} key={item.id}>
+                        <div key={item.id} className={styles.infoCard}>
                           <div>
                             <h4>{item.itemName}</h4>
-                            <p>{item.type}</p>
+                            <p>
+                              {item.type} • {item.status}
+                            </p>
                             <span>{item.feedback}</span>
                           </div>
-                          <strong className={styles.statusBadge}>{item.status}</strong>
+                          <span className={styles.statusBadge}>{item.status}</span>
                         </div>
                       ))
                     ) : (
-                      <div className={styles.emptyState}>No approval items yet.</div>
+                      <div className={styles.emptyState}>No approvals right now.</div>
                     )}
                   </div>
                 </section>
@@ -1659,19 +1642,56 @@ export default function DesignerDashboardPage() {
 
                   <div className={styles.cardList}>
                     {notifications.length > 0 ? (
-                      notifications.map((note) => (
-                        <div className={styles.infoCard} key={note.id}>
+                      notifications.map((item) => (
+                        <div key={item.id} className={styles.infoCard}>
                           <div>
-                            <h4>{note.title}</h4>
-                            <p>{note.type}</p>
-                            <span>{note.time}</span>
+                            <h4>{item.title}</h4>
+                            <span>{item.time}</span>
                           </div>
-                          <strong className={styles.statusBadge}>New</strong>
                         </div>
                       ))
                     ) : (
-                      <div className={styles.emptyState}>No notifications yet.</div>
+                      <div className={styles.emptyState}>No notifications right now.</div>
                     )}
+                  </div>
+                </section>
+              )}
+
+              {activeSection === "settings" && (
+                <section className={styles.panel}>
+                  <div className={styles.panelHead}>
+                    <h3>Settings</h3>
+                  </div>
+
+                  <div className={styles.settingsGrid}>
+                    <div className={styles.settingCard}>
+                      <div>
+                        <h4>Theme Mode</h4>
+                        <p>Switch between light mode and dark mode.</p>
+                      </div>
+
+                      <div className={styles.settingsActions}>
+                        <button
+                          className={`${styles.themeModeBtn} ${
+                            theme === "light" ? styles.themeModeBtnActive : ""
+                          }`}
+                          onClick={() => setTheme("light")}
+                        >
+                          <Sun size={16} />
+                          Light
+                        </button>
+
+                        <button
+                          className={`${styles.themeModeBtn} ${
+                            theme === "dark" ? styles.themeModeBtnActive : ""
+                          }`}
+                          onClick={() => setTheme("dark")}
+                        >
+                          <Moon size={16} />
+                          Dark
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </section>
               )}
@@ -1684,12 +1704,16 @@ export default function DesignerDashboardPage() {
         <div className={styles.modalOverlay}>
           <div className={styles.modalCard}>
             <div className={styles.modalHead}>
-              <h3>Create New Chat</h3>
+              <div>
+                <h3>Create New Chat</h3>
+                <p>Select a project and the people you want in this chat.</p>
+              </div>
+
               <button
-                className={styles.modalCloseBtn}
+                className={styles.closeBtn}
                 onClick={() => setShowCreateChatModal(false)}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
@@ -1699,14 +1723,14 @@ export default function DesignerDashboardPage() {
                 placeholder="Chat title"
                 value={createChatForm.title}
                 onChange={(e) =>
-                  setCreateChatForm({ ...createChatForm, title: e.target.value })
+                  setCreateChatForm((prev) => ({ ...prev, title: e.target.value }))
                 }
               />
 
               <select
                 value={createChatForm.projectId}
                 onChange={(e) =>
-                  setCreateChatForm({ ...createChatForm, projectId: e.target.value })
+                  setCreateChatForm((prev) => ({ ...prev, projectId: e.target.value }))
                 }
               >
                 <option value="">Select project</option>
@@ -1718,10 +1742,10 @@ export default function DesignerDashboardPage() {
               </select>
 
               <div className={styles.participantsBox}>
-                <h4>Select Participants</h4>
+                <h4>Participants</h4>
 
                 {participantsLoading ? (
-                  <div className={styles.participantsLoading}>Loading participants...</div>
+                  <p>Loading participants...</p>
                 ) : availableParticipants.length > 0 ? (
                   <div className={styles.participantsList}>
                     {availableParticipants.map((participant) => (
@@ -1731,36 +1755,27 @@ export default function DesignerDashboardPage() {
                           checked={selectedParticipantIds.includes(participant.id)}
                           onChange={() => toggleParticipant(participant.id)}
                         />
-                        <div>
-                          <strong>{participant.name}</strong>
-                          <span>
-                            {participant.email} • {participant.role}
-                          </span>
-                        </div>
+                        <span>
+                          {participant.name} ({formatRole(participant.role)})
+                        </span>
                       </label>
                     ))}
                   </div>
                 ) : (
-                  <div className={styles.participantsLoading}>
-                    Select a project first.
-                  </div>
+                  <p>No participants available for this project.</p>
                 )}
               </div>
             </div>
 
             <div className={styles.modalActions}>
               <button
-                className={styles.modalCancelBtn}
+                className={styles.cancelBtn}
                 onClick={() => setShowCreateChatModal(false)}
               >
                 Cancel
               </button>
 
-              <button
-                className={styles.modalCreateBtn}
-                onClick={handleCreateChat}
-                disabled={creatingChat}
-              >
+              <button className={styles.createBtn} onClick={handleCreateChat}>
                 {creatingChat ? "Creating..." : "Create Chat"}
               </button>
             </div>
